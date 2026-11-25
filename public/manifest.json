@@ -1,0 +1,17 @@
+{
+  "name": "Doña Lorenza — Sistema de Gestión",
+  "short_name": "Doña Lorenza",
+  "description": "Sistema de gestión y POS para Doña Lorenza",
+  "start_url": "/pos",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#15803d",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
