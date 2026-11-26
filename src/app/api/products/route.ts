@@ -210,3 +210,29 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID de producto requerido' }, { status: 400 })
+    }
+
+    // Baja lógica (soft delete)
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+    })
+
+    return NextResponse.json({ message: 'Producto dado de baja exitosamente', product: updated })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}

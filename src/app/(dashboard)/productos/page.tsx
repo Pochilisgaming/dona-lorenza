@@ -14,6 +14,11 @@ import {
   Scale,
   DollarSign,
   TrendingUp,
+  PowerOff,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Archive,
 } from 'lucide-react'
 import { formatCurrency, formatQuantity } from '@/lib/utils'
 
@@ -22,9 +27,11 @@ export default function ProductosPage() {
 
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'INACTIVE' | 'ALL'>('ACTIVE')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<any>(null)
+  const [productToDeactivate, setProductToDeactivate] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
   // Formulario Producto
@@ -37,6 +44,7 @@ export default function ProductosPage() {
   const [currentPurchaseCost, setCurrentPurchaseCost] = useState('')
   const [currentStock, setCurrentStock] = useState('')
   const [minStock, setMinStock] = useState('')
+  const [isActive, setIsActive] = useState(true)
 
   // Formulario Nueva Categoría Dinámica
   const [newCatName, setNewCatName] = useState('')
@@ -67,6 +75,10 @@ export default function ProductosPage() {
     },
   })
 
+  // Conteo por estado
+  const activeCount = useMemo(() => products.filter((p: any) => p.isActive !== false).length, [products])
+  const inactiveCount = useMemo(() => products.filter((p: any) => p.isActive === false).length, [products])
+
   // Margen en tiempo real en formulario
   const calculatedMargin = useMemo(() => {
     const cost = parseFloat(currentPurchaseCost) || 0
@@ -78,14 +90,22 @@ export default function ProductosPage() {
   // Filtrado
   const filtered = useMemo(() => {
     return products.filter((p: any) => {
+      // Filtro de estado
+      if (statusFilter === 'ACTIVE' && p.isActive === false) return false
+      if (statusFilter === 'INACTIVE' && p.isActive !== false) return false
+
+      // Filtro de categoría
       const matchCat = selectedCategory === 'ALL' || p.categoryId === selectedCategory
+
+      // Filtro de texto
       const matchText =
         search === '' ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         (p.code && p.code.toLowerCase().includes(search.toLowerCase()))
+
       return matchCat && matchText
     })
-  }, [products, selectedCategory, search])
+  }, [products, statusFilter, selectedCategory, search])
 
   const openCreateModal = () => {
     setEditingProduct(null)
@@ -98,6 +118,7 @@ export default function ProductosPage() {
     setCurrentPurchaseCost('')
     setCurrentStock('0')
     setMinStock('5')
+    setIsActive(true)
     setErrorMsg('')
     setIsModalOpen(true)
   }
@@ -113,6 +134,7 @@ export default function ProductosPage() {
     setCurrentPurchaseCost(p.currentPurchaseCost.toString())
     setCurrentStock(p.currentStock.toString())
     setMinStock(p.minStock.toString())
+    setIsActive(p.isActive !== false)
     setErrorMsg('')
     setIsModalOpen(true)
   }
@@ -130,6 +152,7 @@ export default function ProductosPage() {
         currentPurchaseCost: parseFloat(currentPurchaseCost) || 0,
         currentStock: parseFloat(currentStock) || 0,
         minStock: parseFloat(minStock) || 0,
+        isActive: Boolean(isActive),
       }
 
       const url = '/api/products'
@@ -154,6 +177,29 @@ export default function ProductosPage() {
     },
     onError: (err: any) => {
       setErrorMsg(err.message)
+    },
+  })
+
+  // Mutation para Dar de Baja o Reactivar producto rápidamente
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string; newStatus: boolean }) => {
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isActive: newStatus }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al cambiar estado del producto')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      setProductToDeactivate(null)
+    },
+    onError: (err: any) => {
+      alert(`Error: ${err.message}`)
     },
   })
 
@@ -192,7 +238,7 @@ export default function ProductosPage() {
             📦 Gestión de Productos
           </h1>
           <p className="text-xs text-slate-500">
-            Control de artículos, categorías dinámicas, costos, precios y unidades de medida
+            Control de artículos, categorías dinámicas, costos, precios, bajas y reactivaciones
           </p>
         </div>
 
@@ -215,9 +261,9 @@ export default function ProductosPage() {
         </div>
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
-      <div className="flex flex-col sm:flex-row items-center gap-2.5 rounded-2xl bg-white p-3 border border-slate-200 shadow-xs">
-        <div className="relative flex-1 w-full">
+      {/* Barra de Filtros, Búsqueda y Segmentador de Estado */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 rounded-2xl bg-white p-3 border border-slate-200 shadow-xs">
+        <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
@@ -228,18 +274,56 @@ export default function ProductosPage() {
           />
         </div>
 
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="w-full sm:w-56 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:border-emerald-600 focus:outline-none"
-        >
-          <option value="ALL">Todas las Categorías</option>
-          {categories.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Segmentador de Estado: Activos / Dados de Baja / Todos */}
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
+            <button
+              onClick={() => setStatusFilter('ACTIVE')}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-bold transition-all ${
+                statusFilter === 'ACTIVE'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Activos ({activeCount})</span>
+            </button>
+            <button
+              onClick={() => setStatusFilter('INACTIVE')}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 font-bold transition-all ${
+                statusFilter === 'INACTIVE'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span>Dados de Baja ({inactiveCount})</span>
+            </button>
+            <button
+              onClick={() => setStatusFilter('ALL')}
+              className={`rounded-lg px-2.5 py-1 font-bold transition-all ${
+                statusFilter === 'ALL'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Todos ({products.length})</span>
+            </button>
+          </div>
+
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full sm:w-48 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:border-emerald-600 focus:outline-none"
+          >
+            <option value="ALL">Todas las Categorías</option>
+            {categories.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Tabla de Productos */}
@@ -249,6 +333,7 @@ export default function ProductosPage() {
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider text-[10px] font-bold">
               <tr>
                 <th className="py-3 px-4">Producto</th>
+                <th className="py-3 px-3">Estado</th>
                 <th className="py-3 px-3">Categoría</th>
                 <th className="py-3 px-3">Unidad</th>
                 <th className="py-3 px-3 text-right">Costo</th>
@@ -261,14 +346,14 @@ export default function ProductosPage() {
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     Cargando productos...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No se encontraron productos registrados
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    No se encontraron productos para los filtros seleccionados
                   </td>
                 </tr>
               ) : (
@@ -277,32 +362,61 @@ export default function ProductosPage() {
                   const sale = Number(p.currentSalePrice)
                   const margin = cost > 0 ? ((sale - cost) / cost) * 100 : 0
                   const isLow = Number(p.currentStock) <= Number(p.minStock)
+                  const isProdActive = p.isActive !== false
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={p.id}
+                      className={`transition-colors ${
+                        !isProdActive ? 'bg-slate-50/70 opacity-75' : 'hover:bg-slate-50/80'
+                      }`}
+                    >
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{p.name}</div>
+                        <div className={`font-bold ${isProdActive ? 'text-slate-900' : 'text-slate-500 line-through'}`}>
+                          {p.name}
+                        </div>
                         {p.code && <div className="text-[10px] text-slate-400 font-mono">{p.code}</div>}
                       </td>
+
+                      {/* Estado */}
+                      <td className="py-3 px-3">
+                        {isProdActive ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 border border-emerald-200">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                            Activo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700 border border-rose-200">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                            Dado de Baja
+                          </span>
+                        )}
+                      </td>
+
                       <td className="py-3 px-3">
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                           {p.category.name}
                         </span>
                       </td>
+
                       <td className="py-3 px-3">
                         <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
                           {p.unitOfMeasure.name} ({p.unitOfMeasure.abbreviation})
                         </span>
                       </td>
+
                       <td className="py-3 px-3 text-right text-slate-500 font-semibold">
                         {formatCurrency(cost)}
                       </td>
+
                       <td className="py-3 px-3 text-right font-black text-emerald-700">
                         {formatCurrency(sale)}
                       </td>
+
                       <td className="py-3 px-3 text-right font-bold text-slate-700">
                         +{margin.toFixed(1)}%
                       </td>
+
                       <td className="py-3 px-3 text-right">
                         <span
                           className={`font-black ${
@@ -312,13 +426,36 @@ export default function ProductosPage() {
                           {formatQuantity(p.currentStock, p.unitOfMeasure.abbreviation)}
                         </span>
                       </td>
+
+                      {/* Acciones */}
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => openEditModal(p)}
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-emerald-700"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => openEditModal(p)}
+                            title="Editar producto"
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+
+                          {isProdActive ? (
+                            <button
+                              onClick={() => setProductToDeactivate(p)}
+                              title="Dar de baja producto"
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            >
+                              <PowerOff className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => toggleStatusMutation.mutate({ id: p.id, newStatus: true })}
+                              title="Reactivar producto"
+                              className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -328,6 +465,52 @@ export default function ProductosPage() {
           </table>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* MODAL: CONFIRMACIÓN PARA DAR DE BAJA UN PRODUCTO             */}
+      {/* ============================================================ */}
+      {productToDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3">
+          <div className="flex flex-col w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600 mb-3">
+              <PowerOff className="h-6 w-6" />
+            </div>
+
+            <h3 className="text-center font-black text-slate-900 text-base">
+              ¿Dar de baja este producto?
+            </h3>
+            <p className="text-center text-xs text-slate-500 mt-1">
+              Estás por dar de baja <strong className="text-slate-800 font-bold">{productToDeactivate.name}</strong>.
+            </p>
+
+            <div className="my-3 rounded-xl bg-slate-50 p-2.5 text-[11px] text-slate-600 border border-slate-200">
+              <p>• Dejará de aparecer en el mostrador del Punto de Venta (POS).</p>
+              <p>• Se preservará su historial de ventas, stock y precios.</p>
+              <p>• Podrás reactivarlo cuando desees con un solo clic.</p>
+            </div>
+
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setProductToDeactivate(null)}
+                className="flex-1 rounded-xl border border-slate-300 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={toggleStatusMutation.isPending}
+                onClick={() =>
+                  toggleStatusMutation.mutate({ id: productToDeactivate.id, newStatus: false })
+                }
+                className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-rose-700 disabled:opacity-50 transition-all"
+              >
+                {toggleStatusMutation.isPending ? 'Procesando...' : 'Dar de Baja'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* MODAL: ALTA / EDICIÓN DE PRODUCTO                            */}
@@ -360,6 +543,27 @@ export default function ProductosPage() {
                   <span>{errorMsg}</span>
                 </div>
               )}
+
+              {/* Selector de Estado Activo / Inactivo */}
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-200">
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block">
+                    Estado del Producto
+                  </label>
+                  <span className="text-[10px] text-slate-500">
+                    {isActive ? 'Activo y disponible para cobrar en POS' : 'Dado de baja (no visible en POS)'}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del Producto *</label>
