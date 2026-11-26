@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { MobileNav } from '@/components/layout/mobile-nav'
@@ -10,7 +12,32 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/login')
+    }
+  }, [status, router])
+
+  if (status === 'loading') {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-900 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="text-4xl animate-bounce">🥬</div>
+          <span className="text-sm font-semibold tracking-wide text-emerald-400">
+            Cargando Doña Lorenza...
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
