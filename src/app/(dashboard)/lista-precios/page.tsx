@@ -29,9 +29,9 @@ export default function ListaPreciosPage() {
   const [selectedProductHistory, setSelectedProductHistory] = useState<any>(null)
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', 'active-only'],
     queryFn: async () => {
-      const res = await fetch('/api/products')
+      const res = await fetch('/api/products?activeOnly=true')
       return res.json()
     },
   })
@@ -44,8 +44,12 @@ export default function ListaPreciosPage() {
     },
   })
 
+  // Lista de precios vigentes (exclusivamente productos activos en catálogo)
   const filtered = useMemo(() => {
     return products.filter((p: any) => {
+      // Excluir estrictamente productos dados de baja
+      if (p.isActive === false) return false
+
       const matchCat = selectedCategory === 'ALL' || p.categoryId === selectedCategory
       const matchText =
         search === '' ||

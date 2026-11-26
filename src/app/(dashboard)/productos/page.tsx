@@ -52,7 +52,7 @@ export default function ProductosPage() {
 
   // Queries
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', 'all'],
     queryFn: async () => {
       const res = await fetch('/api/products?activeOnly=false')
       return res.json()

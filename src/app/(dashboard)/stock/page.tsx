@@ -28,9 +28,9 @@ export default function StockPage() {
 
   // Queries
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', 'active-only'],
     queryFn: async () => {
-      const res = await fetch('/api/products')
+      const res = await fetch('/api/products?activeOnly=true')
       return res.json()
     },
   })
@@ -73,8 +73,10 @@ export default function StockPage() {
   })
 
   const filteredProducts = products.filter((p: any) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.code && p.code.toLowerCase().includes(search.toLowerCase()))
+    p.isActive !== false && (
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.code && p.code.toLowerCase().includes(search.toLowerCase()))
+    )
   )
 
   return (
@@ -276,7 +278,7 @@ export default function StockPage() {
                   onChange={(e) => setSelectedProductId(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 p-2 focus:border-emerald-600 focus:outline-none"
                 >
-                  {products.map((p: any) => (
+                  {products.filter((p: any) => p.isActive !== false).map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name} (Actual: {p.currentStock} {p.unitOfMeasure.abbreviation})
                     </option>

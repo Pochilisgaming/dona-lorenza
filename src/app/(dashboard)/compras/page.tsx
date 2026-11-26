@@ -76,9 +76,9 @@ export default function ComprasPage() {
   })
 
   const { data: products = [] } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', 'active-only'],
     queryFn: async () => {
-      const res = await fetch('/api/products')
+      const res = await fetch('/api/products?activeOnly=true')
       return res.json()
     },
   })
@@ -472,7 +472,7 @@ export default function ComprasPage() {
                     className="rounded-xl border border-emerald-600 bg-emerald-50 px-2 py-1 text-emerald-900 font-bold text-xs focus:outline-none"
                   >
                     <option value="">+ Agregar Producto...</option>
-                    {products.map((p: any) => (
+                    {products.filter((p: any) => p.isActive !== false).map((p: any) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.unitOfMeasure.abbreviation})
                       </option>

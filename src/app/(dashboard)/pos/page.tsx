@@ -60,9 +60,9 @@ export default function PosPage() {
 
   // Queries
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['products'],
+    queryKey: ['products', 'active-only'],
     queryFn: async () => {
-      const res = await fetch('/api/products')
+      const res = await fetch('/api/products?activeOnly=true')
       return res.json()
     },
   })
@@ -83,9 +83,12 @@ export default function PosPage() {
     },
   })
 
-  // Filtrado de productos en tiempo real
+  // Filtrado de productos en tiempo real (solo productos activos)
   const filteredProducts = useMemo(() => {
     return products.filter((p: any) => {
+      // Excluir estrictamente productos dados de baja
+      if (p.isActive === false) return false
+
       const matchCat = selectedCategory === 'ALL' || p.categoryId === selectedCategory
       const matchText =
         search === '' ||
@@ -577,7 +580,7 @@ export default function PosPage() {
                   Seleccionar Insumos / Ingredientes
                 </p>
                 <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                  {products.map((p: any) => (
+                  {products.filter((p: any) => p.isActive !== false).map((p: any) => (
                     <button
                       key={p.id}
                       onClick={() => {
